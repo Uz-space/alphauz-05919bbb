@@ -7,6 +7,11 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  nitro: {
+    // The current runtime enables Node compatibility by default. Emitting the
+    // legacy flag makes the published worker fail before the app can start.
+    cloudflare: { nodeCompat: false },
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
