@@ -846,7 +846,7 @@ function Index() {
                 </button>
 
                 <label
-                  className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 py-2.5 text-xs text-foreground/80 hover:bg-white/10 ${uploadingAudio ? "pointer-events-none opacity-70" : ""}`}
+                  className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 py-2 text-xs text-foreground/80 hover:bg-white/10 ${uploadingAudio ? "pointer-events-none opacity-70" : ""}`}
 
                 >
                   {uploadingAudio ? (
