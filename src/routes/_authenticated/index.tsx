@@ -773,7 +773,7 @@ function Index() {
             {/* Handle */}
             <div
               data-drawer-handle
-              className="flex h-10 w-full touch-none select-none flex-col items-center justify-center"
+              className="flex h-8 w-full touch-none select-none flex-col items-center justify-center"
               onTouchStart={(e) => {
                 e.preventDefault();
                 dragStartY.current = e.touches[0].clientY;
