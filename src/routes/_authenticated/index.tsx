@@ -833,8 +833,9 @@ function Index() {
             </div>
 
             {/* Drawer content */}
-            <div ref={drawerContentRef} className="w-full px-2 pb-2 pt-1">
-              <div className="flex flex-col gap-2 rounded-[20px] border border-white/15 bg-card/45 p-3 shadow-[0_8px_22px_-14px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
+            <div ref={drawerContentRef} className="w-full">
+              <div className="flex flex-col gap-3 rounded-t-[40px] rounded-b-[40px] border border-white/15 bg-card/45 p-5 pb-10 shadow-[0_8px_22px_-14px_rgba(0,0,0,0.22)] backdrop-blur-2xl lg:rounded-t-[44px] lg:rounded-b-[44px] lg:p-6 lg:pb-14">
+
                 <button
                   onClick={() => setConfirmOpen(true)}
                   disabled={!track}
