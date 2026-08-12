@@ -762,7 +762,7 @@ function Index() {
 
             style={{
               transform: drawerMeasured
-                ? `translateY(${((1 - drawerProgress) * contentHeight).toFixed(1)}px)`
+                ? `translateY(${((1 - drawerProgress) * (contentHeight + 12)).toFixed(1)}px)`
                 : "translateY(calc(100% - 40px))",
               transition:
                 isDragging || !drawerMeasured
