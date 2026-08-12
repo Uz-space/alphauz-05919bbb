@@ -757,7 +757,7 @@ function Index() {
 
           <div
             ref={drawerRef}
-            className="absolute -bottom-6 -left-4 -right-4 z-30 flex flex-col items-center lg:-bottom-10 lg:left-auto lg:-right-10 lg:w-[calc(50%-2rem)] xl:-right-14 xl:w-[calc(50%-3rem)]"
+            className="absolute bottom-0 left-0 right-0 z-30 flex flex-col items-center lg:bottom-0 lg:left-auto lg:right-0 lg:w-1/2"
 
 
             style={{
