@@ -841,12 +841,13 @@ function Index() {
                   disabled={!track}
                   className="flex items-center justify-center gap-2 rounded-2xl bg-white/5 px-4 py-3.5 text-sm font-medium text-red-400/90 hover:bg-red-500/15 hover:text-red-300 disabled:opacity-30"
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Trash2 className="h-4 w-4" />
                   Delete current
                 </button>
 
                 <label
-                  className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 py-2 text-xs text-foreground/80 hover:bg-white/10 ${uploadingAudio ? "pointer-events-none opacity-70" : ""}`}
+                  className={`flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-white/20 bg-white/5 py-3.5 text-sm text-foreground/80 hover:bg-white/10 ${uploadingAudio ? "pointer-events-none opacity-70" : ""}`}
+
                 >
                   {uploadingAudio ? (
                     <>
