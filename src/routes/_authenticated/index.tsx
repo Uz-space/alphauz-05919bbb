@@ -839,7 +839,7 @@ function Index() {
                 <button
                   onClick={() => setConfirmOpen(true)}
                   disabled={!track}
-                  className="flex items-center justify-center gap-1.5 rounded-xl bg-white/5 px-3 py-2 text-xs font-medium text-red-400/90 hover:bg-red-500/15 hover:text-red-300 disabled:opacity-30"
+                  className="flex items-center justify-center gap-2 rounded-2xl bg-white/5 px-4 py-3.5 text-sm font-medium text-red-400/90 hover:bg-red-500/15 hover:text-red-300 disabled:opacity-30"
                 >
                   <Trash2 className="h-3 w-3" />
                   Delete current
