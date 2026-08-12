@@ -773,7 +773,7 @@ function Index() {
             {/* Handle */}
             <div
               data-drawer-handle
-              className="flex h-10 w-full touch-none select-none flex-col items-center justify-center"
+              className="flex h-8 w-full touch-none select-none flex-col items-center justify-center"
               onTouchStart={(e) => {
                 e.preventDefault();
                 dragStartY.current = e.touches[0].clientY;
@@ -834,19 +834,19 @@ function Index() {
 
             {/* Drawer content */}
             <div ref={drawerContentRef} className="w-full">
-              <div className="flex flex-col gap-2.5 rounded-[32px] border border-white/15 bg-card/45 p-4 shadow-[0_8px_22px_-14px_rgba(0,0,0,0.22)] backdrop-blur-2xl lg:rounded-[34px] lg:p-5">
+              <div className="flex flex-col gap-2 rounded-[32px] border border-white/15 bg-card/45 p-3 shadow-[0_8px_22px_-14px_rgba(0,0,0,0.22)] backdrop-blur-2xl lg:rounded-[34px] lg:p-4">
 
                 <button
                   onClick={() => setConfirmOpen(true)}
                   disabled={!track}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2.5 text-xs font-medium text-red-400/90 hover:bg-red-500/15 hover:text-red-300 disabled:opacity-30"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-xs font-medium text-red-400/90 hover:bg-red-500/15 hover:text-red-300 disabled:opacity-30"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   Delete current
                 </button>
 
                 <label
-                  className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 py-2.5 text-xs text-foreground/80 hover:bg-white/10 ${uploadingAudio ? "pointer-events-none opacity-70" : ""}`}
+                  className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 py-2 text-xs text-foreground/80 hover:bg-white/10 ${uploadingAudio ? "pointer-events-none opacity-70" : ""}`}
 
                 >
                   {uploadingAudio ? (
@@ -883,7 +883,7 @@ function Index() {
                 <button
                   type="button"
                   onClick={signOut}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2.5 text-xs font-medium text-foreground/90 hover:bg-white/10"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-xs font-medium text-foreground/90 hover:bg-white/10"
                 >
                   <LogOut className="h-3.5 w-3.5" />
 
