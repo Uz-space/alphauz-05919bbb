@@ -757,7 +757,8 @@ function Index() {
 
           <div
             ref={drawerRef}
-            className="absolute bottom-5 left-4 right-4 z-30 flex flex-col items-center lg:bottom-0 lg:left-auto lg:right-10 lg:w-[calc(50%-4.5rem)] xl:right-14 xl:w-[calc(50%-5.5rem)]"
+            className="absolute -bottom-6 -left-4 -right-4 z-30 flex flex-col items-center lg:-bottom-10 lg:left-auto lg:-right-10 lg:w-[calc(50%-2rem)] xl:-right-14 xl:w-[calc(50%-3rem)]"
+
 
             style={{
               transform: drawerMeasured
