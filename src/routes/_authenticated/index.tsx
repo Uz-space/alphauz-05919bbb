@@ -250,6 +250,52 @@ function Index() {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
 
+  // ---- Real-time audio FX: pitch (without tempo) + speed ----
+  const ensureGraph = useCallback(() => {
+    const a = audioRef.current;
+    if (!a) return null;
+    if (!audioCtxRef.current) {
+      const Ctx =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) return null;
+      try {
+        const ctx = new Ctx();
+        const src = ctx.createMediaElementSource(a);
+        const shifter = createPitchShifter(ctx);
+        src.connect(shifter.input);
+        shifter.output.connect(ctx.destination);
+        audioCtxRef.current = ctx;
+        shifterRef.current = shifter;
+      } catch {
+        return null;
+      }
+    }
+    if (audioCtxRef.current.state === "suspended") void audioCtxRef.current.resume();
+    return shifterRef.current;
+  }, []);
+
+  useEffect(() => {
+    if (pitch === 0 && !shifterRef.current) return;
+    ensureGraph()?.setPitch(pitch);
+  }, [pitch, ensureGraph]);
+
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    const el = a as HTMLAudioElement & { preservesPitch?: boolean; mozPreservesPitch?: boolean };
+    el.preservesPitch = true;
+    el.mozPreservesPitch = true;
+    a.playbackRate = speed;
+  }, [speed, audioUrl]);
+
+  useEffect(() => {
+    if (playing && audioCtxRef.current?.state === "suspended") {
+      void audioCtxRef.current.resume();
+    }
+  }, [playing]);
+
+
   useEffect(() => {
     setEditTitle(track?.title ?? "");
     setEditingTitle(false);
