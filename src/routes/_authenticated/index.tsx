@@ -108,9 +108,12 @@ function Index() {
   const [contentHeight, setContentHeight] = useState(0);
   const [drawerMeasured, setDrawerMeasured] = useState(false);
   const [customHex, setCustomHex] = useState("");
-  
+  const [pitch, setPitch] = useState(0);
+  const [speed, setSpeed] = useState(1);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const shifterRef = useRef<PitchShifter | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const urlCache = useRef<Map<string, { url: string; expires: number }>>(new Map());
   const drawerRef = useRef<HTMLDivElement | null>(null);
