@@ -548,6 +548,7 @@ function Index() {
     <div className="relative min-h-dvh w-full overflow-hidden text-foreground">
       <audio
         ref={audioRef}
+        crossOrigin="anonymous"
         onTimeUpdate={(e) => {
           if (!audioUrl || e.currentTarget.currentSrc !== audioUrl) return;
           const nextTime = e.currentTarget.currentTime;
