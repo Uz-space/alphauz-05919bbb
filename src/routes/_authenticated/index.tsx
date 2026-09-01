@@ -7,6 +7,7 @@ import { applyCustomHex, normalizeHex, readCustomHex, restoreTheme } from "@/lib
 import { ColorPicker } from "@/components/color-picker";
 import { cn } from "@/lib/utils";
 import { createPitchShifter, type PitchShifter } from "@/lib/pitch-shift";
+import { FxSlider } from "@/components/fx-slider";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -283,6 +284,11 @@ function Index() {
     if (pitch === 0 && !shifterRef.current) return;
     ensureGraph()?.setPitch(pitch);
   }, [pitch, ensureGraph]);
+
+  // Build the graph as soon as playback starts so the first slider move is instant.
+  useEffect(() => {
+    if (playing) ensureGraph();
+  }, [playing, ensureGraph]);
 
   useEffect(() => {
     const a = audioRef.current;
