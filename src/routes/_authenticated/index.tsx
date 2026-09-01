@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { applyCustomHex, normalizeHex, readCustomHex, restoreTheme } from "@/lib/theme";
 import { ColorPicker } from "@/components/color-picker";
 import { cn } from "@/lib/utils";
+import { createPitchShifter, type PitchShifter } from "@/lib/pitch-shift";
 import {
   AlertDialog,
   AlertDialogAction,
