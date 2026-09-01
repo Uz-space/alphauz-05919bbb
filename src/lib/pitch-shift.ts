@@ -100,14 +100,22 @@ export function createPitchShifter(ctx: AudioContext): PitchShifter {
   mod3.connect(mix1.gain);
   mod4.connect(mix2.gain);
 
+  const dry = ctx.createGain();
+  const wet = ctx.createGain();
+  dry.gain.value = 1;
+  wet.gain.value = 0;
+  input.connect(dry);
+  dry.connect(output);
+
   input.connect(delay1);
   input.connect(delay2);
   delay1.connect(mix1);
   delay2.connect(mix2);
   mix1.connect(fade1);
   mix2.connect(fade2);
-  fade1.connect(output);
-  fade2.connect(output);
+  fade1.connect(wet);
+  fade2.connect(wet);
+  wet.connect(output);
 
   const t = ctx.currentTime + 0.05;
   const t2 = t + BUFFER_TIME - FADE_TIME;
@@ -117,6 +125,10 @@ export function createPitchShifter(ctx: AudioContext): PitchShifter {
   mod4.start(t2);
 
   const setPitch = (semitones: number) => {
+    const now = ctx.currentTime;
+    const bypass = Math.abs(semitones) < 0.01;
+    dry.gain.setTargetAtTime(bypass ? 1 : 0, now, 0.02);
+    wet.gain.setTargetAtTime(bypass ? 0 : 1, now, 0.02);
     const ratio = Math.pow(2, semitones / 12) - 1;
     if (ratio > 0) {
       mod1.buffer = shiftUpBuffer;
