@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { applyCustomHex, normalizeHex, readCustomHex, restoreTheme } from "@/lib/theme";
 import { ColorPicker } from "@/components/color-picker";
 import { cn } from "@/lib/utils";
+import { createPitchShifter, type PitchShifter } from "@/lib/pitch-shift";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -108,9 +109,12 @@ function Index() {
   const [contentHeight, setContentHeight] = useState(0);
   const [drawerMeasured, setDrawerMeasured] = useState(false);
   const [customHex, setCustomHex] = useState("");
-  
+  const [pitch, setPitch] = useState(0);
+  const [speed, setSpeed] = useState(1);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const shifterRef = useRef<PitchShifter | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const urlCache = useRef<Map<string, { url: string; expires: number }>>(new Map());
   const drawerRef = useRef<HTMLDivElement | null>(null);
@@ -249,6 +253,52 @@ function Index() {
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
+
+  // ---- Real-time audio FX: pitch (without tempo) + speed ----
+  const ensureGraph = useCallback(() => {
+    const a = audioRef.current;
+    if (!a) return null;
+    if (!audioCtxRef.current) {
+      const Ctx =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) return null;
+      try {
+        const ctx = new Ctx();
+        const src = ctx.createMediaElementSource(a);
+        const shifter = createPitchShifter(ctx);
+        src.connect(shifter.input);
+        shifter.output.connect(ctx.destination);
+        audioCtxRef.current = ctx;
+        shifterRef.current = shifter;
+      } catch {
+        return null;
+      }
+    }
+    if (audioCtxRef.current.state === "suspended") void audioCtxRef.current.resume();
+    return shifterRef.current;
+  }, []);
+
+  useEffect(() => {
+    if (pitch === 0 && !shifterRef.current) return;
+    ensureGraph()?.setPitch(pitch);
+  }, [pitch, ensureGraph]);
+
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    const el = a as HTMLAudioElement & { preservesPitch?: boolean; mozPreservesPitch?: boolean };
+    el.preservesPitch = true;
+    el.mozPreservesPitch = true;
+    a.playbackRate = speed;
+  }, [speed, audioUrl]);
+
+  useEffect(() => {
+    if (playing && audioCtxRef.current?.state === "suspended") {
+      void audioCtxRef.current.resume();
+    }
+  }, [playing]);
+
 
   useEffect(() => {
     setEditTitle(track?.title ?? "");
@@ -498,6 +548,7 @@ function Index() {
     <div className="relative min-h-dvh w-full overflow-hidden text-foreground">
       <audio
         ref={audioRef}
+        crossOrigin="anonymous"
         onTimeUpdate={(e) => {
           if (!audioUrl || e.currentTarget.currentSrc !== audioUrl) return;
           const nextTime = e.currentTarget.currentTime;
@@ -871,6 +922,63 @@ function Index() {
                     onChange={(e) => handleAudioUpload(e.target.files)}
                   />
                 </label>
+
+                {/* Real-time audio FX */}
+                <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+                  <div className="flex items-center justify-between text-[11px] text-foreground/70">
+                    <span>Ovoz qalinligi</span>
+                    <button
+                      type="button"
+                      onClick={() => setPitch(0)}
+                      className="rounded-md px-1.5 py-0.5 tabular-nums text-foreground/90 hover:bg-white/10"
+                    >
+                      {pitch > 0 ? `+${pitch}` : pitch} st
+                    </button>
+                  </div>
+                  <input
+                    type="range"
+                    min={-12}
+                    max={12}
+                    step={1}
+                    value={pitch}
+                    onChange={(e) => setPitch(Number(e.target.value))}
+                    className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-[var(--player-accent)] outline-none"
+                    aria-label="Ovoz qalinligi (pitch)"
+                  />
+
+                  <div className="flex items-center justify-between pt-1 text-[11px] text-foreground/70">
+                    <span>Tezlik</span>
+                    <span className="tabular-nums text-foreground/90">{speed.toFixed(2)}x</span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {[0.75, 1, 1.25, 1.5, 2].map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setSpeed(s)}
+                        className={cn(
+                          "flex-1 rounded-lg py-1 text-[11px] font-medium transition",
+                          Math.abs(speed - s) < 0.001
+                            ? "bg-foreground/90 text-background"
+                            : "bg-white/5 text-foreground/80 hover:bg-white/10",
+                        )}
+                      >
+                        {s}x
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={2}
+                    step={0.05}
+                    value={speed}
+                    onChange={(e) => setSpeed(Number(e.target.value))}
+                    className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-[var(--player-accent)] outline-none"
+                    aria-label="Tezlik"
+                  />
+                </div>
+
 
                 <ColorPicker
                   value={normalizeHex(customHex) ?? "#1c1c1f"}
