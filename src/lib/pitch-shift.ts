@@ -62,26 +62,34 @@ export function createPitchShifter(ctx: AudioContext): PitchShifter {
   const input = ctx.createGain();
   const output = ctx.createGain();
 
-  const modGain1 = ctx.createGain();
-  const modGain2 = ctx.createGain();
+  const downGain1 = ctx.createGain();
+  const downGain2 = ctx.createGain();
+  const upGain1 = ctx.createGain();
+  const upGain2 = ctx.createGain();
 
-  const mod1 = ctx.createBufferSource();
-  const mod2 = ctx.createBufferSource();
-  const mod3 = ctx.createBufferSource();
-  const mod4 = ctx.createBufferSource();
+  const downMod1 = ctx.createBufferSource();
+  const downMod2 = ctx.createBufferSource();
+  const upMod1 = ctx.createBufferSource();
+  const upMod2 = ctx.createBufferSource();
+  const fadeMod1 = ctx.createBufferSource();
+  const fadeMod2 = ctx.createBufferSource();
 
   const shiftDownBuffer = createDelayTimeBuffer(ctx, BUFFER_TIME, FADE_TIME, false);
   const shiftUpBuffer = createDelayTimeBuffer(ctx, BUFFER_TIME, FADE_TIME, true);
   const fadeBuffer = createFadeBuffer(ctx, BUFFER_TIME, FADE_TIME);
 
-  mod1.buffer = shiftDownBuffer;
-  mod2.buffer = shiftDownBuffer;
-  mod3.buffer = fadeBuffer;
-  mod4.buffer = fadeBuffer;
-  mod1.loop = true;
-  mod2.loop = true;
-  mod3.loop = true;
-  mod4.loop = true;
+  downMod1.buffer = shiftDownBuffer;
+  downMod2.buffer = shiftDownBuffer;
+  upMod1.buffer = shiftUpBuffer;
+  upMod2.buffer = shiftUpBuffer;
+  fadeMod1.buffer = fadeBuffer;
+  fadeMod2.buffer = fadeBuffer;
+  downMod1.loop = true;
+  downMod2.loop = true;
+  upMod1.loop = true;
+  upMod2.loop = true;
+  fadeMod1.loop = true;
+  fadeMod2.loop = true;
 
   const delay1 = ctx.createDelay();
   const delay2 = ctx.createDelay();
@@ -92,13 +100,21 @@ export function createPitchShifter(ctx: AudioContext): PitchShifter {
   mix1.gain.value = 0;
   mix2.gain.value = 0;
 
-  mod1.connect(modGain1);
-  mod2.connect(modGain2);
-  modGain1.connect(delay1.delayTime);
-  modGain2.connect(delay2.delayTime);
+  downGain1.gain.value = 0;
+  downGain2.gain.value = 0;
+  upGain1.gain.value = 0;
+  upGain2.gain.value = 0;
+  downMod1.connect(downGain1);
+  downMod2.connect(downGain2);
+  upMod1.connect(upGain1);
+  upMod2.connect(upGain2);
+  downGain1.connect(delay1.delayTime);
+  downGain2.connect(delay2.delayTime);
+  upGain1.connect(delay1.delayTime);
+  upGain2.connect(delay2.delayTime);
 
-  mod3.connect(mix1.gain);
-  mod4.connect(mix2.gain);
+  fadeMod1.connect(mix1.gain);
+  fadeMod2.connect(mix2.gain);
 
   const dry = ctx.createGain();
   const wet = ctx.createGain();
@@ -119,10 +135,12 @@ export function createPitchShifter(ctx: AudioContext): PitchShifter {
 
   const t = ctx.currentTime + 0.05;
   const t2 = t + BUFFER_TIME - FADE_TIME;
-  mod1.start(t);
-  mod2.start(t2);
-  mod3.start(t);
-  mod4.start(t2);
+  downMod1.start(t);
+  downMod2.start(t2);
+  upMod1.start(t);
+  upMod2.start(t2);
+  fadeMod1.start(t);
+  fadeMod2.start(t2);
 
   const setPitch = (semitones: number) => {
     const now = ctx.currentTime;
@@ -130,16 +148,13 @@ export function createPitchShifter(ctx: AudioContext): PitchShifter {
     dry.gain.setTargetAtTime(bypass ? 1 : 0, now, 0.02);
     wet.gain.setTargetAtTime(bypass ? 0 : 1, now, 0.02);
     const ratio = Math.pow(2, semitones / 12) - 1;
-    if (ratio > 0) {
-      mod1.buffer = shiftUpBuffer;
-      mod2.buffer = shiftUpBuffer;
-    } else {
-      mod1.buffer = shiftDownBuffer;
-      mod2.buffer = shiftDownBuffer;
-    }
-    const amount = Math.abs(ratio) * DELAY_TIME;
-    modGain1.gain.setTargetAtTime(amount, ctx.currentTime, 0.01);
-    modGain2.gain.setTargetAtTime(amount, ctx.currentTime, 0.01);
+    const amount = Math.min(DELAY_TIME, Math.abs(ratio) * DELAY_TIME);
+    const downAmount = ratio < 0 ? amount : 0;
+    const upAmount = ratio > 0 ? amount : 0;
+    downGain1.gain.setTargetAtTime(downAmount, now, 0.01);
+    downGain2.gain.setTargetAtTime(downAmount, now, 0.01);
+    upGain1.gain.setTargetAtTime(upAmount, now, 0.01);
+    upGain2.gain.setTargetAtTime(upAmount, now, 0.01);
   };
 
   setPitch(0);
@@ -150,10 +165,12 @@ export function createPitchShifter(ctx: AudioContext): PitchShifter {
     setPitch,
     disconnect: () => {
       try {
-        mod1.stop();
-        mod2.stop();
-        mod3.stop();
-        mod4.stop();
+        downMod1.stop();
+        downMod2.stop();
+        upMod1.stop();
+        upMod2.stop();
+        fadeMod1.stop();
+        fadeMod2.stop();
       } catch {
         /* noop */
       }
