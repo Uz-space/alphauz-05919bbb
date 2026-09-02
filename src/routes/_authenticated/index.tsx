@@ -280,15 +280,15 @@ function Index() {
     return shifterRef.current;
   }, []);
 
+  // Only build the Web Audio graph when the user actually moves the pitch
+  // slider (a real user gesture). Creating a MediaElementSource earlier can
+  // leave the AudioContext suspended and silence playback entirely.
   useEffect(() => {
     if (pitch === 0 && !shifterRef.current) return;
-    ensureGraph()?.setPitch(pitch);
+    const shifter = ensureGraph();
+    shifter?.setPitch(pitch);
+    if (audioCtxRef.current?.state === "suspended") void audioCtxRef.current.resume();
   }, [pitch, ensureGraph]);
-
-  // Build the graph as soon as playback starts so the first slider move is instant.
-  useEffect(() => {
-    if (playing) ensureGraph();
-  }, [playing, ensureGraph]);
 
   useEffect(() => {
     const a = audioRef.current;
@@ -930,13 +930,13 @@ function Index() {
                 </label>
 
                 {/* Real-time audio FX */}
-                <div className="flex flex-col gap-3 rounded-xl border border-border bg-secondary/40 px-3 py-4">
-                  <div className="flex items-center justify-between text-[11px] text-foreground/70">
+                <div className="flex flex-col gap-2 rounded-xl border border-border bg-secondary/40 px-3 py-3">
+                  <div className="flex items-center justify-between text-[10px] text-foreground/70">
                     <span>Ovoz qalinligi</span>
                     <button
                       type="button"
                       onClick={() => setPitch(0)}
-                      className="rounded-md px-1.5 py-0.5 tabular-nums text-foreground/90 hover:bg-white/10"
+                      className="rounded-md px-1 py-0 tabular-nums text-foreground/90 hover:bg-white/10"
                     >
                       {pitch > 0 ? `+${pitch}` : pitch} st
                     </button>
@@ -947,16 +947,16 @@ function Index() {
                     min={-12}
                     max={12}
                     step={1}
-                    background="linear-gradient(90deg,#3b82f6,#64748b,#f97316)"
+                    background="linear-gradient(90deg,#f5f5f5,#8a8a8a,#111111)"
                     onChange={setPitch}
                   />
 
-                  <div className="flex items-center justify-between text-[11px] text-foreground/70">
+                  <div className="flex items-center justify-between text-[10px] text-foreground/70">
                     <span>Tezlik</span>
                     <button
                       type="button"
                       onClick={() => setSpeed(1)}
-                      className="rounded-md px-1.5 py-0.5 tabular-nums text-foreground/90 hover:bg-white/10"
+                      className="rounded-md px-1 py-0 tabular-nums text-foreground/90 hover:bg-white/10"
                     >
                       {speed.toFixed(2)}x
                     </button>
@@ -967,17 +967,17 @@ function Index() {
                     min={0.5}
                     max={2}
                     step={0.05}
-                    background="linear-gradient(90deg,#0ea5e9,#22c55e,#eab308)"
+                    background="linear-gradient(90deg,#111111,#8a8a8a,#f5f5f5)"
                     onChange={setSpeed}
                   />
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-1">
                     {[0.75, 1, 1.25, 1.5, 2].map((s) => (
                       <button
                         key={s}
                         type="button"
                         onClick={() => setSpeed(s)}
                         className={cn(
-                          "flex-1 rounded-lg py-1 text-[11px] font-medium transition",
+                          "flex-1 rounded-md py-0.5 text-[10px] font-medium transition",
                           Math.abs(speed - s) < 0.001
                             ? "bg-foreground/90 text-background"
                             : "bg-white/5 text-foreground/80 hover:bg-white/10",
