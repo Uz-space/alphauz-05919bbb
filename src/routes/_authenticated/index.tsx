@@ -264,15 +264,30 @@ function Index() {
         window.AudioContext ??
         (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctx) return null;
+      let ctx: AudioContext | null = null;
+      let src: MediaElementAudioSourceNode | null = null;
       try {
-        const ctx = new Ctx();
-        const src = ctx.createMediaElementSource(a);
+        ctx = new Ctx();
+        src = ctx.createMediaElementSource(a);
+        // Keep a safe audible route until the whole pitch graph is ready.
+        src.connect(ctx.destination);
         const shifter = createPitchShifter(ctx);
+        src.disconnect();
         src.connect(shifter.input);
         shifter.output.connect(ctx.destination);
         audioCtxRef.current = ctx;
         shifterRef.current = shifter;
       } catch {
+        // If FX setup fails after the media source was created, keep normal
+        // playback connected instead of leaving the audio element silent.
+        if (ctx && src) {
+          try {
+            src.connect(ctx.destination);
+            audioCtxRef.current = ctx;
+          } catch {
+            void ctx.close();
+          }
+        }
         return null;
       }
     }
@@ -280,15 +295,32 @@ function Index() {
     return shifterRef.current;
   }, []);
 
-  // Only build the Web Audio graph when the user actually moves the pitch
-  // slider (a real user gesture). Creating a MediaElementSource earlier can
-  // leave the AudioContext suspended and silence playback entirely.
-  useEffect(() => {
-    if (pitch === 0 && !shifterRef.current) return;
-    const shifter = ensureGraph();
-    shifter?.setPitch(pitch);
-    if (audioCtxRef.current?.state === "suspended") void audioCtxRef.current.resume();
-  }, [pitch, ensureGraph]);
+  const changePitch = useCallback(
+    (nextPitch: number) => {
+      // This runs directly inside pointer/keyboard input, so mobile browsers
+      // permit AudioContext.resume() and pitch changes remain audible live.
+      const shifter = ensureGraph();
+      shifter?.setPitch(nextPitch);
+      setPitch(nextPitch);
+      const ctx = audioCtxRef.current;
+      if (ctx?.state === "suspended") void ctx.resume();
+    },
+    [ensureGraph],
+  );
+
+  const changeSpeed = useCallback((nextSpeed: number) => {
+    const a = audioRef.current;
+    if (a) {
+      const el = a as HTMLAudioElement & {
+        preservesPitch?: boolean;
+        mozPreservesPitch?: boolean;
+      };
+      el.preservesPitch = true;
+      el.mozPreservesPitch = true;
+      a.playbackRate = nextSpeed;
+    }
+    setSpeed(nextSpeed);
+  }, []);
 
   useEffect(() => {
     const a = audioRef.current;
@@ -759,6 +791,8 @@ function Index() {
               <button
                 onClick={async () => {
                   if (!track || !audioUrl) return;
+                    const ctx = audioCtxRef.current;
+                    if (ctx?.state === "suspended") await ctx.resume();
                   setPlaying((p) => !p);
                 }}
                 disabled={!track || !audioUrl}
@@ -935,7 +969,7 @@ function Index() {
                     <span>Ovoz qalinligi</span>
                     <button
                       type="button"
-                      onClick={() => setPitch(0)}
+                      onClick={() => changePitch(0)}
                       className="rounded-md px-1 py-0 tabular-nums text-foreground/90 hover:bg-white/10"
                     >
                       {pitch > 0 ? `+${pitch}` : pitch} st
@@ -948,14 +982,14 @@ function Index() {
                     max={12}
                     step={1}
                     background="linear-gradient(90deg,#f5f5f5,#8a8a8a,#111111)"
-                    onChange={setPitch}
+                    onChange={changePitch}
                   />
 
                   <div className="flex items-center justify-between text-[10px] text-foreground/70">
                     <span>Tezlik</span>
                     <button
                       type="button"
-                      onClick={() => setSpeed(1)}
+                      onClick={() => changeSpeed(1)}
                       className="rounded-md px-1 py-0 tabular-nums text-foreground/90 hover:bg-white/10"
                     >
                       {speed.toFixed(2)}x
@@ -968,14 +1002,14 @@ function Index() {
                     max={2}
                     step={0.05}
                     background="linear-gradient(90deg,#111111,#8a8a8a,#f5f5f5)"
-                    onChange={setSpeed}
+                    onChange={changeSpeed}
                   />
                   <div className="flex gap-1">
                     {[0.75, 1, 1.25, 1.5, 2].map((s) => (
                       <button
                         key={s}
                         type="button"
-                        onClick={() => setSpeed(s)}
+                        onClick={() => changeSpeed(s)}
                         className={cn(
                           "flex-1 rounded-md py-0.5 text-[10px] font-medium transition",
                           Math.abs(speed - s) < 0.001
