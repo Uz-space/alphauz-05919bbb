@@ -115,7 +115,9 @@ function Index() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const shifterRef = useRef<PitchShifter | null>(null);
+  const shifterRef = useRef<SoundTouchNode | null>(null);
+  const mediaSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const graphInitRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const urlCache = useRef<Map<string, { url: string; expires: number }>>(new Map());
   const drawerRef = useRef<HTMLDivElement | null>(null);
