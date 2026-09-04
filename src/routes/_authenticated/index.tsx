@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { applyCustomHex, normalizeHex, readCustomHex, restoreTheme } from "@/lib/theme";
 import { ColorPicker } from "@/components/color-picker";
 import { cn } from "@/lib/utils";
-import { createPitchShifter, type PitchShifter } from "@/lib/pitch-shift";
+import type { SoundTouchNode } from "@soundtouchjs/audio-worklet";
 import { FxSlider } from "@/components/fx-slider";
 import {
   AlertDialog,
@@ -115,7 +115,11 @@ function Index() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const shifterRef = useRef<PitchShifter | null>(null);
+  const shifterRef = useRef<SoundTouchNode | null>(null);
+  const mediaSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const graphInitRef = useRef(false);
+  const pitchRef = useRef(0);
+  const speedRef = useRef(1);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const urlCache = useRef<Map<string, { url: string; expires: number }>>(new Map());
   const drawerRef = useRef<HTMLDivElement | null>(null);
@@ -255,81 +259,89 @@ function Index() {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
 
-  // ---- Real-time audio FX: pitch (without tempo) + speed ----
+  // ---- Real-time audio FX: high quality pitch (SoundTouch) + speed ----
+  const applyRate = useCallback((nextSpeed: number) => {
+    const a = audioRef.current;
+    if (!a) return;
+    const el = a as HTMLAudioElement & { preservesPitch?: boolean; mozPreservesPitch?: boolean };
+    const st = shifterRef.current;
+    // With SoundTouch active the browser must not do its own pitch correction.
+    el.preservesPitch = !st;
+    el.mozPreservesPitch = !st;
+    a.playbackRate = nextSpeed;
+    if (st) st.playbackRate.value = nextSpeed;
+  }, []);
+
   const ensureGraph = useCallback(() => {
     const a = audioRef.current;
-    if (!a) return null;
+    if (!a) return;
     if (!audioCtxRef.current) {
       const Ctx =
         window.AudioContext ??
         (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!Ctx) return null;
-      let ctx: AudioContext | null = null;
-      let src: MediaElementAudioSourceNode | null = null;
+      if (!Ctx) return;
       try {
-        ctx = new Ctx();
-        src = ctx.createMediaElementSource(a);
-        // Keep a safe audible route until the whole pitch graph is ready.
+        const ctx = new Ctx();
+        const src = ctx.createMediaElementSource(a);
+        // Clean, unprocessed route until the worklet is ready.
         src.connect(ctx.destination);
-        const shifter = createPitchShifter(ctx);
-        src.disconnect();
-        src.connect(shifter.input);
-        shifter.output.connect(ctx.destination);
         audioCtxRef.current = ctx;
-        shifterRef.current = shifter;
+        mediaSrcRef.current = src;
       } catch {
-        // If FX setup fails after the media source was created, keep normal
-        // playback connected instead of leaving the audio element silent.
-        if (ctx && src) {
-          try {
-            src.connect(ctx.destination);
-            audioCtxRef.current = ctx;
-          } catch {
-            void ctx.close();
-          }
-        }
-        return null;
+        return;
       }
     }
-    if (audioCtxRef.current.state === "suspended") void audioCtxRef.current.resume();
-    return shifterRef.current;
-  }, []);
+    const ctx = audioCtxRef.current;
+    if (ctx.state === "suspended") void ctx.resume();
+
+    if (!graphInitRef.current) {
+      graphInitRef.current = true;
+      void (async () => {
+        try {
+          const [{ SoundTouchNode }, { default: processorUrl }] = await Promise.all([
+            import("@soundtouchjs/audio-worklet"),
+            import("@soundtouchjs/audio-worklet/processor?url"),
+          ]);
+          await SoundTouchNode.register(ctx, processorUrl);
+          const node = new SoundTouchNode({ context: ctx });
+          const src = mediaSrcRef.current;
+          if (!src) return;
+          src.disconnect();
+          src.connect(node);
+          node.connect(ctx.destination);
+          shifterRef.current = node;
+          node.pitchSemitones.value = pitchRef.current;
+          applyRate(speedRef.current);
+        } catch {
+          graphInitRef.current = false;
+        }
+      })();
+    }
+  }, [applyRate]);
 
   const changePitch = useCallback(
     (nextPitch: number) => {
-      // This runs directly inside pointer/keyboard input, so mobile browsers
-      // permit AudioContext.resume() and pitch changes remain audible live.
-      const shifter = ensureGraph();
-      shifter?.setPitch(nextPitch);
       setPitch(nextPitch);
-      const ctx = audioCtxRef.current;
-      if (ctx?.state === "suspended") void ctx.resume();
+      pitchRef.current = nextPitch;
+      ensureGraph();
+      const st = shifterRef.current;
+      if (st) st.pitchSemitones.value = nextPitch;
     },
     [ensureGraph],
   );
 
-  const changeSpeed = useCallback((nextSpeed: number) => {
-    const a = audioRef.current;
-    if (a) {
-      const el = a as HTMLAudioElement & {
-        preservesPitch?: boolean;
-        mozPreservesPitch?: boolean;
-      };
-      el.preservesPitch = true;
-      el.mozPreservesPitch = true;
-      a.playbackRate = nextSpeed;
-    }
-    setSpeed(nextSpeed);
-  }, []);
+  const changeSpeed = useCallback(
+    (nextSpeed: number) => {
+      setSpeed(nextSpeed);
+      speedRef.current = nextSpeed;
+      applyRate(nextSpeed);
+    },
+    [applyRate],
+  );
 
   useEffect(() => {
-    const a = audioRef.current;
-    if (!a) return;
-    const el = a as HTMLAudioElement & { preservesPitch?: boolean; mozPreservesPitch?: boolean };
-    el.preservesPitch = true;
-    el.mozPreservesPitch = true;
-    a.playbackRate = speed;
-  }, [speed, audioUrl]);
+    applyRate(speed);
+  }, [speed, audioUrl, applyRate]);
 
   useEffect(() => {
     if (playing && audioCtxRef.current?.state === "suspended") {
