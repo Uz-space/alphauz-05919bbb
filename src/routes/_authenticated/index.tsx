@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { applyCustomHex, normalizeHex, readCustomHex, restoreTheme } from "@/lib/theme";
 import { ColorPicker } from "@/components/color-picker";
 import { cn } from "@/lib/utils";
-import { createPitchShifter, type PitchShifter } from "@/lib/pitch-shift";
+import type { SoundTouchNode } from "@soundtouchjs/audio-worklet";
 import { FxSlider } from "@/components/fx-slider";
 import {
   AlertDialog,
@@ -118,6 +118,8 @@ function Index() {
   const shifterRef = useRef<SoundTouchNode | null>(null);
   const mediaSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const graphInitRef = useRef(false);
+  const pitchRef = useRef(0);
+  const speedRef = useRef(1);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const urlCache = useRef<Map<string, { url: string; expires: number }>>(new Map());
   const drawerRef = useRef<HTMLDivElement | null>(null);
