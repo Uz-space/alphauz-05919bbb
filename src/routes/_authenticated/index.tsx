@@ -303,14 +303,26 @@ function Index() {
             import("@soundtouchjs/audio-worklet/processor?url"),
           ]);
           await SoundTouchNode.register(ctx, processorUrl);
-          const node = new SoundTouchNode({ context: ctx });
+          const node = new SoundTouchNode({
+            context: ctx,
+            sampleBufferType: "fifo",
+            outputChannelCount: 2,
+          });
+          // Prefer quality over latency. The larger overlapping windows and
+          // exhaustive search greatly reduce the metallic pulse at +12 st.
+          node.setStretchParameters({
+            sequenceMs: 100,
+            seekWindowMs: 25,
+            overlapMs: 16,
+            quickSeek: false,
+          });
           const src = mediaSrcRef.current;
           if (!src) return;
           src.disconnect();
           src.connect(node);
           node.connect(ctx.destination);
           shifterRef.current = node;
-          node.pitchSemitones.value = pitchRef.current;
+          node.pitchSemitones.setValueAtTime(pitchRef.current, ctx.currentTime);
           applyRate(speedRef.current);
         } catch {
           graphInitRef.current = false;
@@ -325,7 +337,14 @@ function Index() {
       pitchRef.current = nextPitch;
       ensureGraph();
       const st = shifterRef.current;
-      if (st) st.pitchSemitones.value = nextPitch;
+      const ctx = audioCtxRef.current;
+      if (st && ctx) {
+        const param = st.pitchSemitones;
+        const now = ctx.currentTime;
+        // Smooth rapid slider updates so they do not create zipper noise.
+        param.cancelScheduledValues(now);
+        param.setTargetAtTime(nextPitch, now, 0.045);
+      }
     },
     [ensureGraph],
   );
