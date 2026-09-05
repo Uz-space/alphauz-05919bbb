@@ -256,7 +256,6 @@ function Index() {
     }
   }, [playing, audioUrl, mediaUrl]);
 
-
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
@@ -417,7 +416,6 @@ function Index() {
     };
   }, []);
 
-
   useEffect(() => {
     setEditTitle(track?.title ?? "");
     setEditingTitle(false);
@@ -569,7 +567,6 @@ function Index() {
     }
   };
 
-
   const signOut = async () => {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
@@ -718,7 +715,6 @@ function Index() {
                 src={mediaUrl}
                 className="absolute inset-0 h-full w-full rounded-[22px] object-cover lg:rounded-[32px]"
 
-
                 loop
                 muted
                 playsInline
@@ -727,7 +723,11 @@ function Index() {
                 preload="auto"
                 onLoadedData={(e) => {
                   const a = audioRef.current;
-                  if (a && Number.isFinite(e.currentTarget.duration) && e.currentTarget.duration > 0) {
+                  if (
+                    a &&
+                    Number.isFinite(e.currentTarget.duration) &&
+                    e.currentTarget.duration > 0
+                  ) {
                     e.currentTarget.currentTime = a.currentTime % e.currentTarget.duration;
                   }
                   if (playing) e.currentTarget.play().catch(() => {});
@@ -748,7 +748,6 @@ function Index() {
                 alt=""
                 className="absolute inset-0 h-full w-full rounded-[22px] object-contain lg:rounded-[32px]"
               />
-
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
                 <span className="text-[12px]">No media</span>
@@ -832,9 +831,7 @@ function Index() {
                 {fmt(current)}
               </span>
               <div className="relative h-5 flex-1">
-                <div
-                  className="pointer-events-none absolute left-0 right-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-foreground/25"
-                />
+                <div className="pointer-events-none absolute left-0 right-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-foreground/25" />
                 <div
                   className="pointer-events-none absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-foreground"
                   style={{ width: `${progress * 100}%` }}
@@ -931,7 +928,6 @@ function Index() {
             ref={drawerRef}
             className="absolute bottom-2 left-2 right-2 z-30 flex flex-col items-center lg:bottom-3 lg:left-[27%] lg:right-[27%]"
 
-
             style={{
               transform: drawerMeasured
                 ? `translateY(${((1 - drawerProgress) * (contentHeight + 12)).toFixed(1)}px)`
@@ -1007,7 +1003,6 @@ function Index() {
             {/* Drawer content */}
             <div ref={drawerContentRef} className="w-full">
               <div className="flex flex-col gap-2 rounded-[32px] border border-white/15 bg-card/45 p-3 shadow-[0_8px_22px_-14px_rgba(0,0,0,0.22)] backdrop-blur-2xl lg:rounded-[34px] lg:p-4">
-
                 <button
                   onClick={() => setConfirmOpen(true)}
                   disabled={!track}
@@ -1019,7 +1014,6 @@ function Index() {
 
                 <label
                   className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 py-2 text-xs text-foreground/80 hover:bg-white/10 ${uploadingAudio ? "pointer-events-none opacity-70" : ""}`}
-
                 >
                   {uploadingAudio ? (
                     <>
@@ -1104,8 +1098,6 @@ function Index() {
                   </div>
                 </div>
 
-
-
                 <ColorPicker
                   value={normalizeHex(customHex) ?? "#1c1c1f"}
                   onChange={(hex) => {
@@ -1120,8 +1112,6 @@ function Index() {
                   className="flex items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-xs font-medium text-foreground/90 hover:bg-white/10"
                 >
                   <LogOut className="h-3.5 w-3.5" />
-
-
                   Log out
                 </button>
               </div>
