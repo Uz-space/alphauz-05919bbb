@@ -117,7 +117,9 @@ function Index() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const shifterRef = useRef<SoundTouchNode | null>(null);
   const mediaSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const graphInitRef = useRef(false);
+  const dryGainRef = useRef<GainNode | null>(null);
+  const wetGainRef = useRef<GainNode | null>(null);
+  const graphInitRef = useRef<Promise<SoundTouchNode | null> | null>(null);
   const pitchRef = useRef(0);
   const speedRef = useRef(1);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -254,49 +256,76 @@ function Index() {
     }
   }, [playing, audioUrl, mediaUrl]);
 
-
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
 
-  // ---- Real-time audio FX: high quality pitch (SoundTouch) + speed ----
+  // ---- Real-time audio FX: native clean path + SoundTouch pitch path ----
+  const selectAudioPath = useCallback((usePitchFx: boolean) => {
+    const ctx = audioCtxRef.current;
+    const dry = dryGainRef.current;
+    const wet = wetGainRef.current;
+    const a = audioRef.current;
+    if (!ctx || !dry || !wet || !a) return;
+
+    // Keep the effect processor warm, but use the browser's pristine path at 0 st.
+    // A short equal-power-ish handoff prevents clicks without leaving two delayed
+    // copies audible long enough to create comb filtering.
+    const now = ctx.currentTime;
+    const fadeEnd = now + 0.025;
+    dry.gain.cancelScheduledValues(now);
+    wet.gain.cancelScheduledValues(now);
+    dry.gain.setValueAtTime(dry.gain.value, now);
+    wet.gain.setValueAtTime(wet.gain.value, now);
+    dry.gain.linearRampToValueAtTime(usePitchFx ? 0 : 1, fadeEnd);
+    wet.gain.linearRampToValueAtTime(usePitchFx ? 1 : 0, fadeEnd);
+
+    const el = a as HTMLAudioElement & { preservesPitch?: boolean; mozPreservesPitch?: boolean };
+    el.preservesPitch = !usePitchFx;
+    el.mozPreservesPitch = !usePitchFx;
+  }, []);
+
   const applyRate = useCallback((nextSpeed: number) => {
     const a = audioRef.current;
     if (!a) return;
-    const el = a as HTMLAudioElement & { preservesPitch?: boolean; mozPreservesPitch?: boolean };
     const st = shifterRef.current;
-    // With SoundTouch active the browser must not do its own pitch correction.
-    el.preservesPitch = !st;
-    el.mozPreservesPitch = !st;
     a.playbackRate = nextSpeed;
-    if (st) st.playbackRate.value = nextSpeed;
+    if (st) {
+      st.playbackRate.cancelScheduledValues(st.context.currentTime);
+      st.playbackRate.setValueAtTime(nextSpeed, st.context.currentTime);
+    }
   }, []);
 
-  const ensureGraph = useCallback(() => {
+  const ensureGraph = useCallback(async () => {
     const a = audioRef.current;
-    if (!a) return;
+    if (!a) return null;
     if (!audioCtxRef.current) {
       const Ctx =
         window.AudioContext ??
         (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!Ctx) return;
+      if (!Ctx) return null;
       try {
         const ctx = new Ctx();
         const src = ctx.createMediaElementSource(a);
-        // Clean, unprocessed route until the worklet is ready.
-        src.connect(ctx.destination);
+        const dry = ctx.createGain();
+        const wet = ctx.createGain();
+        dry.gain.value = 1;
+        wet.gain.value = 0;
+        src.connect(dry).connect(ctx.destination);
+        wet.connect(ctx.destination);
         audioCtxRef.current = ctx;
         mediaSrcRef.current = src;
+        dryGainRef.current = dry;
+        wetGainRef.current = wet;
       } catch {
-        return;
+        return null;
       }
     }
     const ctx = audioCtxRef.current;
-    if (ctx.state === "suspended") void ctx.resume();
+    if (ctx.state === "suspended") await ctx.resume();
 
     if (!graphInitRef.current) {
-      graphInitRef.current = true;
-      void (async () => {
+      graphInitRef.current = (async () => {
         try {
           const [{ SoundTouchNode }, { default: processorUrl }] = await Promise.all([
             import("@soundtouchjs/audio-worklet"),
@@ -305,48 +334,56 @@ function Index() {
           await SoundTouchNode.register(ctx, processorUrl);
           const node = new SoundTouchNode({
             context: ctx,
-            sampleBufferType: "fifo",
+            // Circular is the worklet's tested real-time default. FIFO can
+            // underrun at large shifts and was the source of the pulsing sound.
+            sampleBufferType: "circular",
             outputChannelCount: 2,
           });
-          // Prefer quality over latency. The larger overlapping windows and
-          // exhaustive search greatly reduce the metallic pulse at +12 st.
+          // Automatic sequence/seek windows adapt to the current pitch. A
+          // slightly larger overlap smooths vocals without the echo introduced
+          // by forcing a 100 ms window for every shift.
           node.setStretchParameters({
-            sequenceMs: 100,
-            seekWindowMs: 25,
-            overlapMs: 16,
+            sequenceMs: 0,
+            seekWindowMs: 0,
+            overlapMs: 12,
             quickSeek: false,
           });
           const src = mediaSrcRef.current;
-          if (!src) return;
-          src.disconnect();
+          const wet = wetGainRef.current;
+          if (!src || !wet) return null;
           src.connect(node);
-          node.connect(ctx.destination);
+          node.connect(wet);
           shifterRef.current = node;
           node.pitchSemitones.setValueAtTime(pitchRef.current, ctx.currentTime);
           applyRate(speedRef.current);
+          selectAudioPath(pitchRef.current !== 0);
+          return node;
         } catch {
-          graphInitRef.current = false;
+          graphInitRef.current = null;
+          selectAudioPath(false);
+          return null;
         }
       })();
     }
-  }, [applyRate]);
+    return graphInitRef.current;
+  }, [applyRate, selectAudioPath]);
 
   const changePitch = useCallback(
     (nextPitch: number) => {
       setPitch(nextPitch);
       pitchRef.current = nextPitch;
-      ensureGraph();
-      const st = shifterRef.current;
-      const ctx = audioCtxRef.current;
-      if (st && ctx) {
-        const param = st.pitchSemitones;
-        const now = ctx.currentTime;
-        // Smooth rapid slider updates so they do not create zipper noise.
-        param.cancelScheduledValues(now);
-        param.setTargetAtTime(nextPitch, now, 0.045);
-      }
+      void ensureGraph().then((st) => {
+        const ctx = audioCtxRef.current;
+        if (!st || !ctx) return;
+        const latestPitch = pitchRef.current;
+        st.pitchSemitones.cancelScheduledValues(ctx.currentTime);
+        // The parameter is k-rate. Applying the latest snapped semitone once is
+        // cleaner than continuously retuning the stretcher during a ramp.
+        st.pitchSemitones.setValueAtTime(latestPitch, ctx.currentTime);
+        selectAudioPath(latestPitch !== 0);
+      });
     },
-    [ensureGraph],
+    [ensureGraph, selectAudioPath],
   );
 
   const changeSpeed = useCallback(
@@ -368,6 +405,16 @@ function Index() {
     }
   }, [playing]);
 
+  useEffect(() => {
+    return () => {
+      shifterRef.current?.disconnect();
+      mediaSrcRef.current?.disconnect();
+      dryGainRef.current?.disconnect();
+      wetGainRef.current?.disconnect();
+      const ctx = audioCtxRef.current;
+      if (ctx && ctx.state !== "closed") void ctx.close();
+    };
+  }, []);
 
   useEffect(() => {
     setEditTitle(track?.title ?? "");
@@ -520,7 +567,6 @@ function Index() {
     }
   };
 
-
   const signOut = async () => {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
@@ -669,7 +715,6 @@ function Index() {
                 src={mediaUrl}
                 className="absolute inset-0 h-full w-full rounded-[22px] object-cover lg:rounded-[32px]"
 
-
                 loop
                 muted
                 playsInline
@@ -678,7 +723,11 @@ function Index() {
                 preload="auto"
                 onLoadedData={(e) => {
                   const a = audioRef.current;
-                  if (a && Number.isFinite(e.currentTarget.duration) && e.currentTarget.duration > 0) {
+                  if (
+                    a &&
+                    Number.isFinite(e.currentTarget.duration) &&
+                    e.currentTarget.duration > 0
+                  ) {
                     e.currentTarget.currentTime = a.currentTime % e.currentTarget.duration;
                   }
                   if (playing) e.currentTarget.play().catch(() => {});
@@ -699,7 +748,6 @@ function Index() {
                 alt=""
                 className="absolute inset-0 h-full w-full rounded-[22px] object-contain lg:rounded-[32px]"
               />
-
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
                 <span className="text-[12px]">No media</span>
@@ -783,9 +831,7 @@ function Index() {
                 {fmt(current)}
               </span>
               <div className="relative h-5 flex-1">
-                <div
-                  className="pointer-events-none absolute left-0 right-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-foreground/25"
-                />
+                <div className="pointer-events-none absolute left-0 right-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-foreground/25" />
                 <div
                   className="pointer-events-none absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-foreground"
                   style={{ width: `${progress * 100}%` }}
@@ -822,8 +868,9 @@ function Index() {
               <button
                 onClick={async () => {
                   if (!track || !audioUrl) return;
-                    const ctx = audioCtxRef.current;
-                    if (ctx?.state === "suspended") await ctx.resume();
+                  if (pitchRef.current !== 0) await ensureGraph();
+                  const ctx = audioCtxRef.current;
+                  if (ctx?.state === "suspended") await ctx.resume();
                   setPlaying((p) => !p);
                 }}
                 disabled={!track || !audioUrl}
@@ -880,7 +927,6 @@ function Index() {
           <div
             ref={drawerRef}
             className="absolute bottom-2 left-2 right-2 z-30 flex flex-col items-center lg:bottom-3 lg:left-[27%] lg:right-[27%]"
-
 
             style={{
               transform: drawerMeasured
@@ -957,7 +1003,6 @@ function Index() {
             {/* Drawer content */}
             <div ref={drawerContentRef} className="w-full">
               <div className="flex flex-col gap-2 rounded-[32px] border border-white/15 bg-card/45 p-3 shadow-[0_8px_22px_-14px_rgba(0,0,0,0.22)] backdrop-blur-2xl lg:rounded-[34px] lg:p-4">
-
                 <button
                   onClick={() => setConfirmOpen(true)}
                   disabled={!track}
@@ -969,7 +1014,6 @@ function Index() {
 
                 <label
                   className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 py-2 text-xs text-foreground/80 hover:bg-white/10 ${uploadingAudio ? "pointer-events-none opacity-70" : ""}`}
-
                 >
                   {uploadingAudio ? (
                     <>
@@ -1054,8 +1098,6 @@ function Index() {
                   </div>
                 </div>
 
-
-
                 <ColorPicker
                   value={normalizeHex(customHex) ?? "#1c1c1f"}
                   onChange={(hex) => {
@@ -1070,8 +1112,6 @@ function Index() {
                   className="flex items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-xs font-medium text-foreground/90 hover:bg-white/10"
                 >
                   <LogOut className="h-3.5 w-3.5" />
-
-
                   Log out
                 </button>
               </div>
